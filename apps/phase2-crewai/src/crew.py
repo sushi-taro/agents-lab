@@ -1,79 +1,92 @@
 import os
 from crewai import Agent, Task, Crew, LLM, Process
+from crewai.project import CrewBase, agent, task, crew
 from tools import search_tool
 
-llm = LLM(
-    model="gemini/gemini-3.1-flash-lite-preview",
-    api_key=os.environ["GEMINI_API_KEY"],
-    temperature=0.3,
-)
+@CrewBase
+class JleagueCrew:
 
-# Agent
-collector = Agent(
-    role="データ収集スペシャリスト",
-    goal="Jリーグの試合結果・スタッツ・ニュースを網羅的に収集する",
-    backstory="スポーツデータ収集の専門家。複数ソースから正確な情報を集める。",
-    tools=[search_tool],
-    llm=llm,
-    verbose=True,
-)
+    agents_config = "config/agents.yaml"
+    tasks_config = "config/tasks.yaml"
 
-analyst = Agent(
-    role="Jリーグ戦術アナリスト",
-    goal="収集データをxG・PPDAなどの指標で定量評価する",
-    backstory="元J1クラブのデータアナリスト。戦術的視点で試合を深堀りする。",
-    llm=llm,
-    verbose=True,
-)
+    def _llm(self):
+        return LLM(
+            model="gemini/gemini-3.1-flash-lite-preview",
+            api_key=os.environ["GEMINI_API_KEY"],
+            temperature=0.3,
+        )
 
-writer = Agent(
-    role="スポーツライター",
-    goal="分析結果を読みやすい日本語レポートに整形する",
-    backstory="10年のキャリアを持つサッカー専門ライター。",
-    llm=llm,
-    verbose=True,
-)
+    # Agent
+    @agent
+    def collector(self) -> Agent:
+        return Agent(
+            config=self.agents_config["collector"],
+            tools=[search_tool],
+            llm=self._llm(),
+            verbose=True,
+        )
 
-reviewer = Agent(
-    role="編集長",
-    goal="レポートの事実確認・品質チェックを行い、最終版を出力する。",
-    backstory="元新聞社のデスク。情報の正確さと読みやすさを最重視する。",
-    llm=llm,
-    verbose=True,
-)
+    @agent
+    def analyst(self) -> Agent:
+        return Agent(
+            config=self.agents_config["analyst"],
+            llm=self._llm(),
+            verbose=True,
+        )
 
-# Task: 「何をするか」をAgentから分離して定義する
-collect_task = Task(
-    description="{match}の試合結果・スタッツ・関連ニュースをWebから収集せよ。",
-    expected_output="スコア・スタッツ・注目トピックを含む収集データ（箇条書き）",
-    agent=collector,
-)
+    @agent
+    def writer(self) -> Agent:
+        return Agent(
+            config=self.agents_config["writer"],
+            llm=self._llm(),
+            verbose=True,
+        )
 
-analyze_task = Task(
-    description="収集データを下に戦術的分析を行え。xGやPPDAに言及すること。",
-    expected_output="定量指標を含む戦術分析（箇条書き）",
-    agent=analyst,
-    context=[collect_task],
-)
+    @agent
+    def reviewer(self) -> Agent:
+        return Agent(
+            config=self.agents_config["reviewer"],
+            llm=self._llm(),
+            verbose=True,
+        )
 
-write_task = Task(
-    description="分析結果をMarkdown形式の日本語レポートにまとめよ。",
-    expected_output="Markdown形式のレポート（基本情報・内容評価・注目選手・総評）",
-    agent=writer,
-    context=[collect_task, analyze_task],
-)
+    # Task: 「何をするか」をAgentから分離して定義する
+    @task
+    def collect_task(self) -> Task:
+        return Task(
+            config=self.tasks_config["collect_task"],
+        )
 
-review_task = Task(
-    description="レポートの事実確認と品質チェックを行い、最終版を出力せよ。",
-    expected_output="校正済みの最終レポート（Markdown）",
-    agent=reviewer,
-    context=[write_task],
-)
+    @task
+    def analyze_task(self) -> Task:
+        return Task(
+            config=self.tasks_config["analyze_task"],
+            context=[self.collect_task()],
+        )
 
-# Crew
-jleague_crew = Crew(
-    agents=[collector, analyst, writer, reviewer],
-    tasks=[collect_task, analyze_task, write_task, review_task],
-    process=Process.sequential,
-    verbose=True,
-)
+    @task
+    def write_task(self) -> Task:
+        return Task(
+            config=self.tasks_config["write_task"],
+            context=[self.collect_task(), self.analyze_task()],
+        )
+
+    @task
+    def review_task(self) -> Task:
+        return Task(
+            config=self.tasks_config["review_task"],
+            context=[self.collect_task(), self.write_task()],
+        )
+
+    # Crew
+    @crew
+    def crew(self) -> Crew:
+        return Crew(
+            agents=self.agents,
+            tasks=self.tasks,
+            process=Process.sequential,
+            verbose=True,
+        )
+
+# モジュールレベルでインスタンスを生成（main.pyからimportするため）
+jleague_crew = JleagueCrew().crew()

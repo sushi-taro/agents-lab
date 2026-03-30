@@ -1,0 +1,22 @@
+collect_task:
+  description: "{match} の試合結果・スタッツ（必ずxGとPPDAを含める）・関連ニュースをWebから収集せよ。"
+  expected_output: スコア・スタッツ・注目トピックを含む収集データ（箇条書き）
+  agent: collector
+
+analyze_task:
+  description: 収集データを下に戦術的分析を行え。xGやPPDAに言及すること。
+  expected_output: 定量指標を含む戦術分析（箇条書き）
+  agent: analyst
+
+write_task:
+  description: 分析結果をMarkdown形式の日本語レポートにまとめよ。
+  expected_output: Markdown形式のレポート（基本情報・内容評価・注目選手・総評）
+  agent: writer
+  markdown: true
+
+
+review_task:
+  description: レポートの事実確認と品質チェックを行い、最終版を出力せよ。
+  expected_output: 校正済みの最終レポート（Markdown）
+  agent: reviewer
+  markdown: true
