@@ -74,5 +74,6 @@ review_task = Task(
 jleague_crew = Crew(
     agents=[collector, analyst, writer, reviewer],
     tasks=[collect_task, analyze_task, write_task, review_task],
+    process=Process.sequential,
     verbose=True,
 )
