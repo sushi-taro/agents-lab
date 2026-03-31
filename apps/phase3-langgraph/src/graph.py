@@ -19,7 +19,9 @@ class ReportState(TypedDict):
     raw_data: str  # 収集データ
     analysis: str  # 分析結果
     report: str  # 執筆結果
-    reviewed: str  # レビュー後の最終稿
+    feedback: str  # レビューのフィードバックコメント
+    approved: bool  # レビュー結果
+    revision_count: int  # 書き直し回数
 
 
 # 2. Node: Stateを受け取りStateを返す関数
@@ -40,17 +42,43 @@ def analyze_node(state: ReportState) -> dict:
 
 
 def write_node(state: ReportState) -> dict:
-    response = llm.invoke(
-        f"以下の分析をMarkdown形式の日本語レポートにしてください。\n\n{state['analysis']}"
-    )
-    return {"report": response.content}
+    feedback = state.get("feedback", "")
+    prompt = f"以下の分析をMarkdown形式の日本語レポートにしてください。\n\n{state['analysis']}"
+    if feedback:
+        prompt += (
+            f"\n\n 【前回のフィードバック】\n{feedback}\nこの点を修正してください。"
+        )
+    response = llm.invoke(prompt)
+    return {
+        "report": response.content,
+        "revision_count": state.get("revision_count", 0) + 1,
+    }
 
 
 def review_node(state: ReportState) -> dict:
     response = llm.invoke(
-        f"以下のレポートの品質チェックを行い、修正済みの最終版をMarkdown形式で出力してください。最終版レポートのみを出力し、あなたのコメントや感想は追加しないでください。\n\n{state['report']}"
+        f"""
+        以下のレポートを評価してください。
+        問題がなければ「APPROVED」とだけ答えてください。
+        問題があれば「REJECTED: （具体的な改善点）」の形式で答えてください。
+
+        {state['report']}
+        """
     )
-    return {"reviewed": response.content}
+
+    content = response.content.strip()
+    approved = content.startswith("APPROVED")
+    feedback = "" if approved else content.replace("REJECTED:", "").strip()
+    return {"approved": approved, "feedback": feedback}
+
+
+# 条件分岐のルーティング関数
+def route_after_review(state: ReportState) -> str:
+    if state["approved"]:
+        return "approved"
+    if state.get("revision_count", 0) >= 3:
+        return "approved"  # 3回超えたら強制終了
+    return "rejected"
 
 
 # 3. Graph: ノードとエッジを組み立てる
@@ -66,6 +94,17 @@ def build_graph():
     graph.add_edge("collector", "analyst")
     graph.add_edge("analyst", "writer")
     graph.add_edge("writer", "reviewer")
+
+    # レビュー結果のフィードバックループ
+    graph.add_conditional_edges(
+        "reviewer",
+        route_after_review,
+        {
+            "approved": END,
+            "rejected": "writer",
+        },
+    )
+
     graph.add_edge("reviewer", END)
 
     return graph.compile()
