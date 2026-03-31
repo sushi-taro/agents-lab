@@ -10,11 +10,19 @@ class JleagueCrew:
     tasks_config = "config/tasks.yaml"
 
     def _llm(self):
-        return LLM(
-            model="gemini/gemini-3.1-flash-lite-preview",
-            api_key=os.environ["GEMINI_API_KEY"],
-            temperature=0.3,
-        )
+        selected_model = os.environ.get("SELECTED_MODEL", "gemini")
+        if selected_model == "gpt":
+            return LLM(
+                model="gpt-5-nano-2025-08-07",
+                api_key=os.environ.get("OPENAI_API_KEY"),
+                temperature=0.3,
+            )
+        else:
+            return LLM(
+                model="gemini/gemini-3.1-flash-lite-preview",
+                api_key=os.environ.get("GEMINI_API_KEY"),
+                temperature=0.3,
+            )
 
     # Agent
     @agent
