@@ -7,8 +7,15 @@ from graph import build_graph
 
 def main():
     app = build_graph()
-    result = app.invoke({"match": "柏レイソル 2024/12/8 札幌戦"})
-    print(result["report"])
+    print("=== Jリーグ試合分析エージェント ===")
+    print(
+        "分析したい試合を入力してください（例：柏レイソル 2026/3/22 水戸ホーリーホック戦）"
+    )
+    user_input = input("あなた: ").strip()
+    print("\nエージェント思考中...\n")
+    result = app.invoke({"match": user_input})
+    print(f"アナリスト:\n{result['report']}\n")
+    print("-" * 60 + "\n")
 
 
 if __name__ == "__main__":
