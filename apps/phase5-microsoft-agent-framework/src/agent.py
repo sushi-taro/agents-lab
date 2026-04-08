@@ -1,10 +1,11 @@
 import os
-from agent_framework import Agent
+from agent_framework import Agent, AgentSession
 from agent_framework.foundry import FoundryChatClient
 from azure.identity import AzureCliCredential
 
 
-async def run_analysis(query: str) -> None:
+def create_agent() -> Agent:
+    """エージェントを1回だけ生成して返す"""
     credential = AzureCliCredential()
     client = FoundryChatClient(
         project_endpoint=os.environ["AZURE_AI_PROJECT_ENDPOINT"],
@@ -15,8 +16,7 @@ async def run_analysis(query: str) -> None:
     # ツール定義
     web_search_tool = client.get_web_search_tool()
 
-    # エージェント定義
-    agent = Agent(
+    return Agent(
         client=client,
         name="jleague_analyst",
         instructions="""
@@ -27,12 +27,12 @@ async def run_analysis(query: str) -> None:
         tools=[web_search_tool],
     )
 
+
+async def run_analysis(agent: Agent, query: str, session: AgentSession) -> None:
+    """セッションを受け取って実行する（エージェントは外部で生成）"""
     # ストリーミングレスポンス
-    async for chunk in agent.run(query, stream=True):
+    async for chunk in agent.run(query, session=session, stream=True):
         if chunk.text:
             print(chunk.text, end="", flush=True)
 
-    # 非ストリーミング
-    # response = await agent.run("柏レイソルの直近の試合を分析してください")
-    # print(f"Response: \n{response.text}\n")
     print()  # 最後に改行
