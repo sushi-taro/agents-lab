@@ -23,8 +23,17 @@ async def main():
         あなたはJリーグ戦術アナリストです。ユーザーが指定した試合内容に関する分析をMarkdown形式の日本語で分析してください。
         """,
     )
-    response = await agent.run("柏レイソルの直近の試合を分析してください")
-    print(f"Response: \n{response.text}\n")
+
+    # ストリーミングレスポンス
+    async for chunk in agent.run(
+        "柏レイソルの直近の試合を分析してください", stream=True
+    ):
+        if chunk.text:
+            print(chunk.text, end="", flush=True)
+
+    # 非ストリーミング
+    # response = await agent.run("柏レイソルの直近の試合を分析してください")
+    # print(f"Response: \n{response.text}\n")
 
 
 if __name__ == "__main__":
